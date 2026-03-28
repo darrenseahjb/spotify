@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+
+lambda_build/
+lambda_spotify_etl.zip
+lambda_spotify_etl_new.zip
+
+spotify_dashboard/.streamlit/secrets.toml
+
+.DS_Store

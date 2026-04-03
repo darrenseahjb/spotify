@@ -1,6 +1,6 @@
 # Spotify Listening Analytics Pipeline
 
-Serverless Spotify listening analytics pipeline feeding a live Streamlit dashboard.
+Scheduled Spotify ingestion pipeline on AWS, storing recently played history in PostgreSQL and feeding a live Streamlit dashboard.
 
 ## Quick Links
 
@@ -8,19 +8,32 @@ Serverless Spotify listening analytics pipeline feeding a live Streamlit dashboa
 - Source Code: [Spotify Listening Analytics Pipeline](https://github.com/darrenseahjb/spotify)
 - Dashboard Repo: [spotify-streamlit-dashboard](https://github.com/darrenseahjb/spotify-streamlit-dashboard)
 
-## Overview
+## What This Repo Is
 
 This is the backend repo.
 
-It refreshes Spotify tokens, ingests recently played tracks, writes deduplicated history into PostgreSQL on Amazon RDS, and powers the live dashboard.
+It does four things:
+- refreshes a Spotify access token from a stored refresh token
+- pulls recently played tracks from the Spotify Web API on a schedule
+- writes deduplicated listening history into PostgreSQL on Amazon RDS
+- provides the same underlying dataset that the public dashboard reads from
+
+This is a personal analytics pipeline, not a production SaaS system.
 
 ## Architecture
 
-1. Spotify Web API provides recently played track data.
-2. AWS Lambda refreshes the access token and pulls the newest listens.
-3. The Lambda writes new rows into `spotify_history` in PostgreSQL on Amazon RDS.
-4. EventBridge runs the ingestion job on a schedule.
-5. A separate Streamlit app reads from the database and presents the data publicly.
+1. Spotify Web API exposes recently played track data.
+2. AWS Lambda refreshes the token and requests the latest listens.
+3. The Lambda inserts new rows into `spotify_history` on Amazon RDS for PostgreSQL.
+4. EventBridge runs the ingestion job on a fixed schedule.
+5. A separate Streamlit app reads from the database and renders the dashboard.
+
+## Why This Design
+
+- Lambda + EventBridge keeps the ingestion path small and cheap for a personal project.
+- RDS provides persistent storage instead of keeping everything in local files.
+- `(track_id, played_at)` is used as the deduplication key so repeated scheduled pulls do not create duplicate rows.
+- The dashboard is split into a separate public repo because the presentation layer evolved independently from the ingestion layer.
 
 ## Stack
 
@@ -30,18 +43,17 @@ It refreshes Spotify tokens, ingests recently played tracks, writes deduplicated
 - Amazon EventBridge
 - Amazon RDS for PostgreSQL
 - PostgreSQL
-- Streamlit
 
 ## Repository Guide
 
 - `lambda_package/lambda_function.py`
-  Lambda entrypoint for token refresh, API calls, deduplication, and inserts.
+  Lambda entrypoint for token refresh, Spotify API retrieval, deduplicated inserts, and structured success/failure responses.
 - `get_refresh_token.py`
   One-time helper to exchange a Spotify authorization code for a refresh token.
 - `spotify-etl-original.py`
-  Local smoke-test script for recently played retrieval.
+  Local smoke-test script for recently played retrieval before the Lambda path existed.
 - `spotify_dashboard/app.py`
-  Local dashboard version connected to the same `spotify_history` table.
+  Local dashboard version pointed at the same `spotify_history` table.
 - `schema.sql`
   PostgreSQL schema for the target table.
 - `.env.example`
@@ -49,11 +61,17 @@ It refreshes Spotify tokens, ingests recently played tracks, writes deduplicated
 
 ## Core Behaviors
 
-- incremental ingestion from Spotify recently played
+- scheduled polling instead of long-running ingestion
 - duplicate-safe inserts into `spotify_history`
 - persistent storage in PostgreSQL
-- scheduled refreshes through EventBridge
-- shared dataset for local and public dashboards
+- shared dataset for both local and public dashboards
+
+## Tradeoffs and Limitations
+
+- This pipeline is scheduled polling, not real-time streaming.
+- It depends on Spotify's recently played endpoint, so historical coverage is limited by what the API exposes unless a separate backfill is done.
+- Reliability is basic: deduplication and env validation are implemented, but retries, alerting, and formal monitoring are not.
+- The Lambda is intentionally simple and single-purpose; infrastructure is configured manually rather than through IaC.
 
 ## Local Setup
 

@@ -20,6 +20,16 @@ It does four things:
 
 This is a personal analytics pipeline, not a production SaaS system.
 
+## Repo Split
+
+This project originally lived in one repo.
+
+It is now split on purpose:
+- this repo keeps the ingestion path, schema, and AWS-side pipeline
+- the public Streamlit dashboard lives in a separate repo and deploys independently
+
+That split keeps the backend repo focused on data collection and storage, while the dashboard repo can iterate faster on presentation and deployment.
+
 ## Architecture
 
 1. Spotify Web API exposes recently played track data.
@@ -33,7 +43,7 @@ This is a personal analytics pipeline, not a production SaaS system.
 - Lambda + EventBridge keeps the ingestion path small and cheap for a personal project.
 - RDS provides persistent storage instead of keeping everything in local files.
 - `(track_id, played_at)` is used as the deduplication key so repeated scheduled pulls do not create duplicate rows.
-- The dashboard is split into a separate public repo because the presentation layer evolved independently from the ingestion layer.
+- The dashboard is split into a separate public repo because the presentation layer now evolves independently from the ingestion layer.
 
 ## Stack
 
@@ -50,10 +60,6 @@ This is a personal analytics pipeline, not a production SaaS system.
   Lambda entrypoint for token refresh, Spotify API retrieval, deduplicated inserts, and structured success/failure responses.
 - `get_refresh_token.py`
   One-time helper to exchange a Spotify authorization code for a refresh token.
-- `spotify-etl-original.py`
-  Local smoke-test script for recently played retrieval before the Lambda path existed.
-- `spotify_dashboard/app.py`
-  Local dashboard version pointed at the same `spotify_history` table.
 - `schema.sql`
   PostgreSQL schema for the target table.
 - `.env.example`
@@ -64,7 +70,7 @@ This is a personal analytics pipeline, not a production SaaS system.
 - scheduled polling instead of long-running ingestion
 - duplicate-safe inserts into `spotify_history`
 - persistent storage in PostgreSQL
-- shared dataset for both local and public dashboards
+- shared dataset for the public dashboard and any local analysis
 
 ## Tradeoffs and Limitations
 
@@ -117,12 +123,7 @@ python .\get_refresh_token.py
 psql -h <host> -U <user> -d <database> -f .\schema.sql
 ```
 
-5. Run the local ingestion smoke test or local dashboard.
-
-```powershell
-python .\spotify-etl-original.py --limit 20
-streamlit run .\spotify_dashboard\app.py
-```
+5. Dashboard development and local Streamlit runs now live in the separate dashboard repo.
 
 ## Deployment Notes
 

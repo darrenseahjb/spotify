@@ -1,49 +1,49 @@
 # Spotify Listening Analytics Pipeline
 
-Scheduled Spotify ingestion pipeline on AWS, storing recently played history in PostgreSQL and feeding a live Streamlit dashboard.
+Scheduled AWS pipeline that pulls Spotify recently played history into PostgreSQL and feeds a live Streamlit dashboard.
 
 ## Quick Links
 
-- Live Demo: [Spotify Listening Analytics](https://spotify-listening-analytics.streamlit.app/)
-- Source Code: [Spotify Listening Analytics Pipeline](https://github.com/darrenseahjb/spotify)
+- Live Demo: [Spotify Insights](https://spotify-listening-analytics.streamlit.app/)
+- Source Code: [spotify](https://github.com/darrenseahjb/spotify)
 - Dashboard Repo: [spotify-streamlit-dashboard](https://github.com/darrenseahjb/spotify-streamlit-dashboard)
 
-## What This Repo Is
+## What This Repo Covers
 
 This is the backend repo.
 
-It does four things:
+It:
 - refreshes a Spotify access token from a stored refresh token
 - pulls recently played tracks from the Spotify Web API on a schedule
 - writes deduplicated listening history into PostgreSQL on Amazon RDS
-- provides the same underlying dataset that the public dashboard reads from
+- provides the dataset used by the public dashboard
 
-This is a personal analytics pipeline, not a production SaaS system.
+This is a personal analytics pipeline, not a production service.
 
 ## Repo Split
 
-This project originally lived in one repo.
+The project originally lived in one repo.
 
 It is now split on purpose:
-- this repo keeps the ingestion path, schema, and AWS-side pipeline
-- the public Streamlit dashboard lives in a separate repo and deploys independently
+- this repo owns ingestion, schema, and AWS-side scheduling
+- the dashboard repo owns the public Streamlit app and presentation layer
 
-That split keeps the backend repo focused on data collection and storage, while the dashboard repo can iterate faster on presentation and deployment.
+That keeps the backend focused on collection and storage, while the dashboard can evolve independently.
 
 ## Architecture
 
 1. Spotify Web API exposes recently played track data.
-2. AWS Lambda refreshes the token and requests the latest listens.
-3. The Lambda inserts new rows into `spotify_history` on Amazon RDS for PostgreSQL.
-4. EventBridge runs the ingestion job on a fixed schedule.
-5. A separate Streamlit app reads from the database and renders the dashboard.
+2. AWS Lambda refreshes the token and fetches the latest listens.
+3. Lambda inserts new rows into `spotify_history` on Amazon RDS for PostgreSQL.
+4. EventBridge runs the job on a fixed schedule.
+5. The public dashboard reads from the same table.
 
 ## Why This Design
 
-- Lambda + EventBridge keeps the ingestion path small and cheap for a personal project.
-- RDS provides persistent storage instead of keeping everything in local files.
-- `(track_id, played_at)` is used as the deduplication key so repeated scheduled pulls do not create duplicate rows.
-- The dashboard is split into a separate public repo because the presentation layer now evolves independently from the ingestion layer.
+- Lambda + EventBridge keeps the ingestion path small and cheap.
+- RDS gives persistent storage instead of local files.
+- `(track_id, played_at)` is used as the deduplication key so repeated pulls do not create duplicate rows.
+- The dashboard is split into a separate repo because the presentation layer now changes faster than the ingestion code.
 
 ## Stack
 
@@ -56,28 +56,28 @@ That split keeps the backend repo focused on data collection and storage, while 
 
 ## Repository Guide
 
-- `lambda_package/lambda_function.py`
-  Lambda entrypoint for token refresh, Spotify API retrieval, deduplicated inserts, and structured success/failure responses.
-- `get_refresh_token.py`
-  One-time helper to exchange a Spotify authorization code for a refresh token.
-- `schema.sql`
-  PostgreSQL schema for the target table.
-- `.env.example`
+- `lambda_package/lambda_function.py`  
+  Lambda entrypoint for token refresh, Spotify API retrieval, deduplicated inserts, and response handling.
+- `get_refresh_token.py`  
+  One-off helper to exchange a Spotify authorisation code for a refresh token.
+- `schema.sql`  
+  PostgreSQL schema for `spotify_history`.
+- `.env.example`  
   Environment variable template for local setup.
 
-## Core Behaviors
+## Core Behaviour
 
-- scheduled polling instead of long-running ingestion
+- scheduled polling
 - duplicate-safe inserts into `spotify_history`
 - persistent storage in PostgreSQL
-- shared dataset for the public dashboard and any local analysis
+- shared dataset for the public dashboard and local analysis
 
 ## Tradeoffs and Limitations
 
-- This pipeline is scheduled polling, not real-time streaming.
-- It depends on Spotify's recently played endpoint, so historical coverage is limited by what the API exposes unless a separate backfill is done.
-- Reliability is basic: deduplication and env validation are implemented, but retries, alerting, and formal monitoring are not.
-- The Lambda is intentionally simple and single-purpose; infrastructure is configured manually rather than through IaC.
+- This pipeline is scheduled polling, not streaming.
+- Historical coverage depends on Spotify's recently played endpoint unless a separate backfill is done.
+- Reliability is basic: deduplication and environment validation are implemented, but retries, alerting, and monitoring are not.
+- Infrastructure is configured manually rather than through IaC.
 
 ## Local Setup
 
@@ -107,7 +107,7 @@ Required variables:
 - `APP_TIMEZONE`
 - `LOG_LEVEL`
 
-3. Exchange an auth code for a refresh token if needed.
+3. Exchange an authorisation code for a refresh token if needed.
 
 ```powershell
 $env:SPOTIFY_CLIENT_ID="..."
@@ -123,7 +123,7 @@ python .\get_refresh_token.py
 psql -h <host> -U <user> -d <database> -f .\schema.sql
 ```
 
-5. Dashboard development and local Streamlit runs now live in the separate dashboard repo.
+Dashboard development and local Streamlit runs now live in the separate dashboard repo.
 
 ## Deployment Notes
 
